@@ -1,161 +1,178 @@
-﻿import React, {useState, useEffect, useRef} from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import './game.css';
 
 const Game = () => {
-    const [words, setWords] = useState([]); // Array to store falling words
-    const [score, setScore] = useState(0); // Player's score
-    const [gameStarted, setGameStarted] = useState(false); // Flag to track if the game has started
-    const [isGameOver, setIsGameOver] = useState(false); // Flag to track if the game is over
-    const [isPaused, setIsPaused] = useState(false); // Flag to track if the game is paused
-    const [wordSpeed, setWordSpeed] = useState(1);
-    const lineRef = useRef(null);
+    const [gameStarted, setGameStarted] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
+    const [words, setWords] = useState([]);
+    const [score, setScore] = useState(0);
+    const [wordSpeed, setWordSpeed] = useState(50);
+    const [wordDelay, setWordDelay] = useState(200);
 
-    
-    // Function to generate a random word
-    const getRandomWord = () => {
-        const wordList = ["apple", "banana", "cat", "dog", "elephant"]; // Example word list
+    const lineRef = useRef(null);
+    const userInputRef = useRef(null);
+    const intervalIdRef = useRef(null);
+
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === ' ') {
+                event.preventDefault();
+                if (gameStarted) {
+                    if (isPaused) {
+                        setIsPaused(false);
+                    }
+                } else {
+                    setGameStarted(true);
+                    setIsPaused(false);
+                    setWords([]);
+                    setScore(0);
+                    setWordSpeed(5);
+                    setWordDelay(200);
+                }
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                setIsPaused(!isPaused);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [gameStarted, isPaused]);
+
+    useEffect(() => {
+        if (gameStarted && !isPaused) {
+            intervalIdRef.current = setInterval(() => {
+                const newWord = {
+                    text: generateRandomWord(),
+                    top: 30, // Initial position above the viewport
+                    left: Math.random() * 90 + "vw", // Random horizontal position
+                };
+
+                setWords((prevWords) => [...prevWords, newWord]);
+                console.log("Word Speed: "+wordSpeed)
+                console.log("Word Delay: "+wordDelay)
+                if((score+1) % 50===0){
+                    setWordSpeed((prevSpeed) => prevSpeed + 0.05); // Decrease word falling speed
+                    setWordDelay((prevDelay) => prevDelay * 0.95); // Decrease word generation delay
+                }
+            }, wordDelay);
+        } else {
+            clearInterval(intervalIdRef.current);
+        }
+
+        return () => {
+            clearInterval(intervalIdRef.current);
+        };
+    }, [gameStarted, isPaused, wordDelay]);
+
+    useEffect(() => {
+        intervalIdRef.current = setInterval(() => {
+            setWords((prevWords) => {
+                return prevWords.map((word) => ({
+                    ...word,
+                    top: word.top + wordSpeed,
+                }));
+            });
+        }, wordDelay);
+
+        return () => {
+            clearInterval(intervalIdRef.current);
+        };
+    }, [words, wordSpeed]);
+
+    useEffect(() => {
+        if (userInputRef.current) {
+            userInputRef.current.focus();
+        }
+    }, [gameStarted, isPaused]);
+
+    const generateRandomWord = () => {
+        const wordList = ['apple', 'banana', 'cat', 'dog', 'elephant'];
         return wordList[Math.floor(Math.random() * wordList.length)];
     };
 
-    // Function to create a falling word object
-    const createFallingWord = () => {
-        
-        if(!isPaused){
-            const word = getRandomWord();
-            const fallingWord = {
-                text: word,
-                top: 0,
-                left: Math.random() * 90, // Random horizontal position
-                isStopped: false,
-                animationDuration: Math.random() * 2 + 25, // Random falling speed
-            };
-
-            setWords((prevWords) => [...prevWords, fallingWord]);
-        }
-    };
-
-    // Function to update the score
-    const updateScore = () => {
-        setScore((prevScore) => prevScore + 1); // Increase the score
-    };
-
-    // Function to handle user input
     const handleUserInput = (event) => {
-        const userInput = event.target.value; // Use value to get the input content
+        const userInput = event.target.value.toLowerCase().trim();
+        const index = words.findIndex((word) => word.text === userInput);
 
-        // Check if the user input matches any falling words
-        const updatedWords = [...words];
-        const index = updatedWords.findIndex((word) => word.text === userInput);
         if (index > -1) {
-            // Remove the matched word
-            updatedWords.splice(index, 1);
-            setWords(updatedWords);
-
-            updateScore();
-
-            // Clear the user input field
+            setWords((prevWords) => {
+                const updatedWords = [...prevWords];
+                updatedWords.splice(index, 1);
+                return updatedWords;
+            });
+            setScore((prevScore) => prevScore + 1);
             event.target.value = '';
         }
     };
 
-    // Function to handle the game over condition
-    const handleGameOver = () => {
-        setIsGameOver(true);
-        setGameStarted(false);
-    };
-
-    useEffect(() => {
-        const intervalId = setInterval(updateWordPositions, 100); // Call updateWordPositions every 100 milliseconds
-
-        // Clear the interval when the component unmounts or when isGameOver changes
-        return () => clearInterval(intervalId);
-    }, [isGameOver]);
-
-    const updateWordPositions = () => {
-        if (!isPaused) {
-            const updatedWords = words.map((word) => {
-                if (!word.isStopped) {
-                    const updatedWord = { ...word };
-                    updatedWord.top += wordSpeed;
-
-                    if (updatedWord.top >= lineRef.current.offsetTop) {
-                        updatedWord.isStopped = true;
-                        handleGameOver();
-                    }
-
-                    return updatedWord;
-                }
-
-                return word;
-            });
-
-            setWords(updatedWords);
-        }
-    };
-
-
-    // Function to start the game
-    const startGame = () => {
-        setGameStarted(true);
-        setIsGameOver(false);
-        setWords([]);
-        setScore(0);
-        setWordSpeed(1);
+    function startGame() {
         
-        // Call createFallingWord initially
-        createFallingWord();
-
-        // Call createFallingWord every 1000ms
-        setInterval(createFallingWord, 1000);
-        console.log("line ref is: "+lineRef.current.offsetTop)
-    };
-
-    function handlePause() {
-        setIsPaused((prevIsPaused) => !prevIsPaused);
+        if (gameStarted) {
+            if (isPaused) {
+                setIsPaused(false);
+            }
+        } else {
+            setGameStarted(true);
+            setIsPaused(false);
+            setWords([]);
+            setScore(0);
+            setWordSpeed(5);
+            setWordDelay(1000);
+        }
     }
 
     return (
-        <div id="game-container">
-            {isGameOver ? (
-                <div className="game-over">
-                    <h1>Game Over</h1>
-                    <p>Score: {score}</p>
+        <div className = "container">
+            {!gameStarted && (
+                <div>
+                    <h1>Press space to start</h1>
+                    <h3>Pause is on Esc</h3>
                 </div>
-            ) : (
-                <>
-                    <div id="falling-words">
+            )}
+
+            {gameStarted && (
+                <div>
+                    <div className="falling-words">
                         {words.map((word, index) => (
                             <div
                                 key={index}
-                                className={`falling-word ${word.isStopped ? 'stopped' : ''}`}
-                                style={{
-                                    top: `${word.top}vh`,
-                                    left: `${word.left}vw`,
-                                }}
+                                className="falling-word"
+                                style={{ top: `${word.top}px`, left: `${word.left}` }}
                             >
                                 {word.text}
                             </div>
                         ))}
                     </div>
-                    <div id="score">Score: {score}</div>
-                    {!gameStarted ? (
-                        <button className="start-button" onClick={startGame}>
-                            Start
-                        </button>
-                    ) : (
-                        <button className="pause-button" onClick={handlePause}>
-                            {isPaused ? 'Resume' : 'Pause'}
-                        </button>
-                    )}
-                    <div id="line" ref={lineRef}></div>
+
+                    <div className="line" ref={lineRef}></div>
+
                     <input
                         type="text"
-                        id="user-input"
-                        autoFocus
+                        className="user-input"
+                        ref={userInputRef}
                         onChange={handleUserInput}
-                        disabled={!gameStarted || isGameOver}
+                        disabled={isPaused}
                     />
-                </>
+
+                    <div className="score">Score: {score}</div>
+                </div>
+            )}
+
+            {!gameStarted && !isPaused && (
+                <button className="start-button" onClick= {startGame}>
+                    Start
+                </button>
+            )}
+
+            {!gameStarted && (
+                <div>
+                    <h1>Game Over</h1>
+                    <h3>Score is: {score}</h3>
+                </div>
             )}
         </div>
     );
